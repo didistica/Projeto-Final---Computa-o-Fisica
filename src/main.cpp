@@ -1,107 +1,61 @@
-/*
- * Basic Arduino Template - Blink
- * ------------------------------
- * Blinks an LED connected to pin 13, once per second.
- *
- * Wiring: plug the LED straight into the top header of the UNO.
- *   - long leg  (+, anode)   -> pin 13
- *   - short leg (-, cathode) -> GND (right next to pin 13)
- *   (a 220 ohm resistor in series is the safer habit for LEDs)
- * The UNO's built-in "L" LED is also on pin 13, so it blinks too.
- *
- *              _____
- *             /     \
- *             | LED |
- *             |_____|
- *              |   |
- *          (-) |   | (+)
- *       short  |   |  long leg
- *   +----------|---|--------------------------------+
- *   |  AREF  GND  13   12   11   10    9    8      |
- *   |                                               |
- *   |  [USB]          ARDUINO UNO                   |
- *   |                                               |
- *   |  [PWR]                                        |
- *   +-----------------------------------------------+
- *
- * Every Arduino sketch has two required functions:
- *   setup() -> runs ONCE when the board powers on or is reset
- *   loop()  -> runs AGAIN AND AGAIN, forever, after setup() finishes
- *
- * In PlatformIO (unlike the Arduino IDE) we must include Arduino.h
- * ourselves. It gives us pinMode(), digitalWrite(), delay(), etc.
- */
+
 #include <Arduino.h>
 
-// ---------------------------------------------------------------------------
-// Global variables
-// Declared OUTSIDE any function, so setup(), loop() and any other
-// function can use them. Their values are kept between loop() runs.
-// ---------------------------------------------------------------------------
+const int TRIG_PIN = 10;
+const int ECHO_PIN = 9;
 
-// The pin our LED is connected to. "const" means it can never change.
-const int ledPin = 13;
+const float DISTANCIA_MIN = 30.0;
+const float DISTANCIA_MAX = 180.0;
 
-// An "int" stores a whole number (no decimals), e.g. -3, 0, 500.
-// Here it holds how long the LED stays on/off, in milliseconds.
-int blinkDelay = 500;
+float intensidadeSuave = 0;
+float intensidadeAlvo = 0;
 
-// A "bool" (boolean) stores only two values: true or false.
-// It remembers whether the LED should be on (true) or off (false).
-// We start with the LED off.
-bool ledIsOn = false;
+void setup() {
+  Serial.begin(115200);
 
-// ---------------------------------------------------------------------------
-// A dummy function
-// Functions let us give a name to a block of code and reuse it.
-//   void          -> this function does not return any value
-//   sayHello      -> the function's name
-//   ()            -> it takes no inputs (parameters)
-// It isn't needed for blinking - it's here to show how functions work.
-// ---------------------------------------------------------------------------
-void sayHello()
-{
-  Serial.println("Hello from sayHello()!");
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
 }
 
-// ---------------------------------------------------------------------------
-// setup(): runs once at the start
-// ---------------------------------------------------------------------------
-void setup()
-{
-  // Tell the board that ledPin is an OUTPUT (we send voltage out of it).
-  pinMode(ledPin, OUTPUT);
+void loop() {
 
-  // Start serial communication at 9600 baud so we can print messages.
-  // Open the PlatformIO Serial Monitor to read them (speed must match:
-  // see monitor_speed in platformio.ini).
-  Serial.begin(9600);
+  // Ativar sensor
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
 
-  // Call (use) our dummy function.
-  sayHello();
-}
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
 
-// ---------------------------------------------------------------------------
-// loop(): runs forever
-// ---------------------------------------------------------------------------
-void loop()
-{
-  // Flip the boolean: "!" means NOT, so true becomes false and
-  // false becomes true. Each time loop() runs, the state swaps.
-  ledIsOn = !ledIsOn;
+  digitalWrite(TRIG_PIN, LOW);
 
-  // Use the boolean to decide what to do.
-  if (ledIsOn)
-  {
-    digitalWrite(ledPin, HIGH); // HIGH = 5V on the pin -> LED on
-    Serial.println("LED is ON");
-  }
-  else
-  {
-    digitalWrite(ledPin, LOW); // LOW = 0V on the pin -> LED off
-    Serial.println("LED is OFF");
+  // Medir distância
+  unsigned long tempo = pulseIn(ECHO_PIN, HIGH, 20000);
+
+  if (tempo > 0) {
+
+    float distancia = tempo / 58.0;
+
+    // Converter distância em intensidade
+    distancia = constrain(
+      distancia,
+      DISTANCIA_MIN,
+      DISTANCIA_MAX
+    );
+
+    // Perto = 100 | Longe = 0
+    intensidadeAlvo =
+      (DISTANCIA_MAX - distancia) /
+      (DISTANCIA_MAX - DISTANCIA_MIN) * 100.0;
+
+  } else {
+    intensidadeAlvo = 0;
   }
 
-  // Wait blinkDelay milliseconds before loop() runs again.
-  delay(blinkDelay);
+  // Suavizar alterações
+  intensidadeSuave +=
+    (intensidadeAlvo - intensidadeSuave) * 0.45;
+
+  Serial.println((int)intensidadeSuave);
+
+  delay(20);
 }
